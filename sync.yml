@@ -1,0 +1,1 @@
+# Sync the Upstream Repository\n\n# Custom Git Merge Command\n\n\n# This file is used for syncing the upstream repository with our fork. \n# Use the following command to allow unrelated histories during the merge:\n\n# git merge upstream/main --allow-unrelated-histories\n

@@ -2,11 +2,11 @@ name: Upstream Sync
 
 permissions:
   contents: write
-  # 不需要 workflows: write，因为我们不让 workflow 文件被修改
+  workflows: write      # ←←← 必须加上这一行
 
 on:
   schedule:
-    - cron: "0 0 * * *"     # 每天 UTC 0点 执行
+    - cron: "0 0 * * *"
   workflow_dispatch:
 
 jobs:
@@ -36,27 +36,24 @@ jobs:
         run: |
           echo "=== 开始从 upstream 同步 ==="
 
-          # 执行合并，优先采用 upstream 的版本（对其他文件）
           if git merge upstream/main --allow-unrelated-histories -X theirs -m "Sync from upstream $(date +%Y-%m-%d)"; then
             echo "✅ Merge completed (using theirs for most files)"
           else
-            echo "⚠️  Merge had conflicts, resolving automatically..."
-            # 如果有冲突，强制解决为 theirs（上游版本）
+            echo "⚠️ Merge had conflicts, resolving..."
             git checkout --theirs -- .
             git add .
           fi
 
-          # 关键保护步骤：强制恢复你本地的 sync.yml（不被上游覆盖）
+          # 强制保护 sync.yml（保留你自己的版本）
           echo "🔒 正在保护 sync.yml（保留本地版本）..."
           git checkout --ours -- .github/workflows/sync.yml
           git add .github/workflows/sync.yml
 
-          # 检查是否真的有变更需要提交
           if git diff --cached --quiet; then
-            echo "✅ 没有需要提交的变更（上游与本地一致）"
+            echo "✅ 没有需要提交的变更"
           else
             git commit -m "Sync from upstream $(date +%Y-%m-%d) (protected sync.yml)"
-            echo "✅ 已提交同步变更（sync.yml 已保护）"
+            echo "✅ 已提交同步变更"
           fi
 
       - name: Push to origin

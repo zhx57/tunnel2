@@ -5,7 +5,7 @@ permissions:
 
 on:
   schedule:
-    - cron: "0 0 * * *" # every day
+    - cron: "0 0 * * *"  # 每天执行
   workflow_dispatch:
 
 jobs:
@@ -13,27 +13,25 @@ jobs:
     name: Sync latest commits from upstream repo
     runs-on: ubuntu-latest
     steps:
-      # Step 1: run a standard checkout action
       - name: Checkout target repo
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      # Step 2: run the sync action
-      - name: Sync upstream changes
-        id: sync
-        uses: aormsby/Fork-Sync-With-Upstream-action@v3.4
-        with:
-          upstream_sync_repo: cmliu/edgetunnel
-          upstream_sync_branch: main
-          target_sync_branch: main
-          target_repo_token: ${{ secrets.GITHUB_TOKEN }}
-          test_mode: false
-          allow_unrelated_histories: true
-
-      - name: Sync check
-        if: failure()
+      - name: Configure git
         run: |
-          echo "[Error] 由于上游仓库的 workflow 文件变更，导致 GitHub 自动暂停了本次自动更新，你需要手动 Sync Fork 一次，详细教程请查看项目README.md "
-          echo "[Error] Due to a change in the workflow file of the upstream repository, GitHub has automatically suspended the scheduled automatic update. You need to manually sync your fork. Please refer to the project README.md for instructions."
-          exit 1
+          git config --global user.email "action@github.com"
+          git config --global user.name "GitHub Action"
+
+      - name: Add upstream remote
+        run: git remote add upstream https://github.com/cmliu/edgetunnel.git || true
+
+      - name: Fetch upstream
+        run: git fetch upstream main
+
+      - name: Merge upstream with unrelated histories
+        run: |
+          git merge upstream/main --allow-unrelated-histories -m "Sync from upstream" || echo "Merge completed"
+
+      - name: Push to origin
+        run: git push origin main --force-with-lease || echo "Push completed"

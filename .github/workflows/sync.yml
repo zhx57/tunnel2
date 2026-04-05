@@ -2,11 +2,12 @@ name: Upstream Sync
 
 permissions:
   contents: write
+  # 不需要 workflows: write，因为我们不让 workflow 文件被修改
 
 on:
   schedule:
-    - cron: "0 0 * * *"   # 每天 UTC 0点 执行
-  workflow_dispatch:      # 支持手动触发
+    - cron: "0 0 * * *"     # 每天 UTC 0点 执行
+  workflow_dispatch:
 
 jobs:
   sync_latest_from_upstream:
@@ -17,7 +18,7 @@ jobs:
       - name: Checkout target repo
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0          # 必须拉取完整历史
+          fetch-depth: 0
 
       - name: Configure git
         run: |
@@ -31,16 +32,31 @@ jobs:
       - name: Fetch upstream
         run: git fetch upstream main
 
-      - name: Merge upstream (优先采用 upstream 版本解决冲突)
+      - name: Merge upstream but protect sync.yml
         run: |
-          echo "=== 开始合并 upstream/main ==="
+          echo "=== 开始从 upstream 同步 ==="
+
+          # 执行合并，优先采用 upstream 的版本（对其他文件）
           if git merge upstream/main --allow-unrelated-histories -X theirs -m "Sync from upstream $(date +%Y-%m-%d)"; then
-            echo "✅ Merge completed successfully"
+            echo "✅ Merge completed (using theirs for most files)"
           else
-            echo "❌ Merge failed with conflicts"
-            echo "当前冲突文件："
-            git diff --name-only --diff-filter=U || true
-            exit 1
+            echo "⚠️  Merge had conflicts, resolving automatically..."
+            # 如果有冲突，强制解决为 theirs（上游版本）
+            git checkout --theirs -- .
+            git add .
+          fi
+
+          # 关键保护步骤：强制恢复你本地的 sync.yml（不被上游覆盖）
+          echo "🔒 正在保护 sync.yml（保留本地版本）..."
+          git checkout --ours -- .github/workflows/sync.yml
+          git add .github/workflows/sync.yml
+
+          # 检查是否真的有变更需要提交
+          if git diff --cached --quiet; then
+            echo "✅ 没有需要提交的变更（上游与本地一致）"
+          else
+            git commit -m "Sync from upstream $(date +%Y-%m-%d) (protected sync.yml)"
+            echo "✅ 已提交同步变更（sync.yml 已保护）"
           fi
 
       - name: Push to origin
@@ -49,6 +65,6 @@ jobs:
           if git push origin main --force-with-lease; then
             echo "✅ Successfully pushed to origin/main"
           else
-            echo "❌ Push failed (可能需要 force push 或有其他问题)"
+            echo "❌ Push failed"
             exit 1
           fi

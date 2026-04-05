@@ -1,8 +1,7 @@
 name: Upstream Sync
 
 permissions:
-  contents: write
-  workflows: write      # ←←← 必须加上这一行
+  contents: write     # 只保留这个就够了
 
 on:
   schedule:
@@ -19,6 +18,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          token: ${{ secrets.UPSTREAM_PAT }}   # 使用 PAT checkout
 
       - name: Configure git
         run: |
@@ -37,14 +37,14 @@ jobs:
           echo "=== 开始从 upstream 同步 ==="
 
           if git merge upstream/main --allow-unrelated-histories -X theirs -m "Sync from upstream $(date +%Y-%m-%d)"; then
-            echo "✅ Merge completed (using theirs for most files)"
+            echo "✅ Merge completed"
           else
             echo "⚠️ Merge had conflicts, resolving..."
             git checkout --theirs -- .
             git add .
           fi
 
-          # 强制保护 sync.yml（保留你自己的版本）
+          # 强制保护自己的 sync.yml
           echo "🔒 正在保护 sync.yml（保留本地版本）..."
           git checkout --ours -- .github/workflows/sync.yml
           git add .github/workflows/sync.yml
@@ -53,7 +53,7 @@ jobs:
             echo "✅ 没有需要提交的变更"
           else
             git commit -m "Sync from upstream $(date +%Y-%m-%d) (protected sync.yml)"
-            echo "✅ 已提交同步变更"
+            echo "✅ 已提交变更"
           fi
 
       - name: Push to origin

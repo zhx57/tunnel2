@@ -5,18 +5,19 @@ permissions:
 
 on:
   schedule:
-    - cron: "0 0 * * *"  # 每天执行
-  workflow_dispatch:
+    - cron: "0 0 * * *"   # 每天 UTC 0点 执行
+  workflow_dispatch:      # 支持手动触发
 
 jobs:
   sync_latest_from_upstream:
     name: Sync latest commits from upstream repo
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout target repo
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 0          # 必须拉取完整历史
 
       - name: Configure git
         run: |
@@ -24,14 +25,30 @@ jobs:
           git config --global user.name "GitHub Action"
 
       - name: Add upstream remote
-        run: git remote add upstream https://github.com/cmliu/edgetunnel.git || true
+        run: |
+          git remote add upstream https://github.com/cmliu/edgetunnel.git || true
 
       - name: Fetch upstream
         run: git fetch upstream main
 
-      - name: Merge upstream with unrelated histories
+      - name: Merge upstream (优先采用 upstream 版本解决冲突)
         run: |
-          git merge upstream/main --allow-unrelated-histories -m "Sync from upstream" || echo "Merge completed"
+          echo "=== 开始合并 upstream/main ==="
+          if git merge upstream/main --allow-unrelated-histories -X theirs -m "Sync from upstream $(date +%Y-%m-%d)"; then
+            echo "✅ Merge completed successfully"
+          else
+            echo "❌ Merge failed with conflicts"
+            echo "当前冲突文件："
+            git diff --name-only --diff-filter=U || true
+            exit 1
+          fi
 
       - name: Push to origin
-        run: git push origin main --force-with-lease || echo "Push completed"
+        run: |
+          echo "=== 正在推送 ==="
+          if git push origin main --force-with-lease; then
+            echo "✅ Successfully pushed to origin/main"
+          else
+            echo "❌ Push failed (可能需要 force push 或有其他问题)"
+            exit 1
+          fi

@@ -1,7 +1,7 @@
 name: Upstream Sync
 
 permissions:
-  contents: write     # 只保留这个就够了
+  contents: write
 
 on:
   schedule:
@@ -14,11 +14,12 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout target repo
+      - name: Checkout target repo with PAT
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          token: ${{ secrets.UPSTREAM_PAT }}   # 使用 PAT checkout
+          token: ${{ secrets.UPSTREAM_PAT }}        # 使用 PAT 检出
+          persist-credentials: true                 # 关键：让后续 git 操作继续使用这个 token
 
       - name: Configure git
         run: |
@@ -39,7 +40,7 @@ jobs:
           if git merge upstream/main --allow-unrelated-histories -X theirs -m "Sync from upstream $(date +%Y-%m-%d)"; then
             echo "✅ Merge completed"
           else
-            echo "⚠️ Merge had conflicts, resolving..."
+            echo "⚠️ Merge had conflicts, resolving with theirs..."
             git checkout --theirs -- .
             git add .
           fi
